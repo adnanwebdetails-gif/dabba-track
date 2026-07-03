@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { UploadCloud, CheckCircle2, AlertTriangle, FileSpreadsheet, Loader2, ArrowRightLeft, RefreshCw } from "lucide-react";
 
@@ -33,6 +34,7 @@ interface UnloggedItem {
 }
 
 export default function Reconcile() {
+  const router = useRouter();
   const [dbParcels, setDbParcels] = useState<Parcel[]>([]);
   const [loadingDb, setLoadingDb] = useState(true);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -57,8 +59,20 @@ export default function Reconcile() {
   const [applyResult, setApplyResult] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDbParcels();
-  }, []);
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (!res.ok) {
+          router.push("/login");
+          return;
+        }
+        fetchDbParcels();
+      } catch (err) {
+        router.push("/login");
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const fetchDbParcels = async () => {
     try {

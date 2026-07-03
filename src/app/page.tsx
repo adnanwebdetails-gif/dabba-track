@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { 
   Search, RefreshCw, Download, Edit2, Trash2, ShieldAlert, CheckCircle2, AlertTriangle, ArrowUpRight, TrendingUp, Landmark, MapPin,
-  Copy, Check, Plus, Calendar, User, Clock, X, ChevronRight, FileText
+  Copy, Check, Plus, Calendar, User, Clock, X, ChevronRight, FileText, Settings, LogOut, Info
 } from "lucide-react";
 
 interface Parcel {
@@ -53,10 +54,75 @@ export default function Dashboard() {
   const [newCheckpointDate, setNewCheckpointDate] = useState("");
   const [isAddingCheckpoint, setIsAddingCheckpoint] = useState(false);
 
+  // Authentication & Settings states
+  const router = useRouter();
+  const [sessionUser, setSessionUser] = useState<any | null>(null);
+  const [hasPersonalKey, setHasPersonalKey] = useState(false);
+  const [personalKeyMasked, setPersonalKeyMasked] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
   useEffect(() => {
     setMounted(true);
-    fetchParcels();
+    checkSession();
   }, []);
+
+  const checkSession = async () => {
+    try {
+      const res = await fetch("/api/auth/session");
+      if (!res.ok) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      setSessionUser(data.user);
+      setHasPersonalKey(data.user.hasApiKey);
+      setPersonalKeyMasked(data.user.apiKeyMasked || "");
+      
+      // Load parcels
+      fetchParcels();
+    } catch (err) {
+      router.push("/login");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        router.push("/login");
+        router.refresh();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Logout failed");
+    }
+  };
+
+  const handleSaveApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/auth/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingmoreApiKey: apiKeyInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update API Key");
+      
+      setHasPersonalKey(data.user.hasApiKey);
+      setPersonalKeyMasked(data.user.apiKeyMasked || "");
+      setShowSettingsModal(false);
+      setApiKeyInput("");
+      alert("TrackingMore API Key updated successfully!");
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const fetchParcels = async () => {
     try {
@@ -568,6 +634,45 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Header and User Actions */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card-bg/60 border border-text-ink/10 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping" />
+          <span className="text-xs text-text-ink/75 font-medium">Logged in as: <strong className="text-text-ink">{sessionUser?.email || "User"}</strong></span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold bg-kraft-bg hover:bg-kraft-bg/85 border border-text-ink/10 text-text-ink px-3 py-1.5 rounded-md transition-all cursor-pointer"
+          >
+            <Settings className="h-4 w-4 text-text-ink/60" />
+            <span>Settings</span>
+          </button>
+          
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-xs font-semibold bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 px-3 py-1.5 rounded-md transition-all cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Warning Notice if personal API Key is missing */}
+      {!hasPersonalKey && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg p-4 flex items-start gap-3">
+          <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h4 className="font-bold text-sm">Personal TrackingMore API Key Needed ⚠️</h4>
+            <p className="text-xs mt-0.5">
+              You haven't added your personal TrackingMore API Key yet. Live tracking sync won't work until you add it. 
+              Click <button onClick={() => setShowSettingsModal(true)} className="font-bold underline text-amber-900 hover:text-amber-950">Settings</button> above to save your key.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Page Title */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -1246,6 +1351,85 @@ export default function Dashboard() {
                 Close View
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Settings Modal Overlay */}
+      {showSettingsModal && (
+        <div 
+          className="fixed inset-0 bg-text-ink/50 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          onClick={() => setShowSettingsModal(false)}
+        >
+          <div 
+            className="bg-card-bg border border-text-ink/15 shadow-2xl rounded-xl max-w-md w-full p-6 space-y-4 text-text-ink"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-text-ink/10 pb-3">
+              <h3 className="font-display font-bold text-lg flex items-center gap-1.5">
+                <Settings className="h-5 w-5 text-terracotta" />
+                Portal Settings
+              </h3>
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1 rounded hover:bg-kraft-bg text-text-ink/50 hover:text-text-ink transition-all"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSaveApiKey} className="space-y-4 text-xs">
+              <div className="space-y-2">
+                <label className="block font-bold text-xxs uppercase tracking-wider text-text-ink/60">
+                  TrackingMore API Key
+                </label>
+                
+                {hasPersonalKey ? (
+                  <div className="bg-emerald-50 text-emerald-850 border border-emerald-200 p-2.5 rounded text-xxs font-medium mb-2 flex items-center justify-between">
+                    <span>Active Key: <strong>{personalKeyMasked}</strong></span>
+                    <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Configured</span>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded text-xxs font-medium mb-2">
+                    No personal API Key saved yet. Sync won't work on the live server without this.
+                  </div>
+                )}
+
+                <input
+                  type="password"
+                  placeholder={hasPersonalKey ? "Enter new API key to overwrite" : "Enter your TrackingMore API Key"}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-text-ink/15 rounded-md bg-kraft-bg/25 text-text-ink text-sm focus:outline-none focus:ring-1 focus:ring-terracotta placeholder-text-ink/35"
+                />
+                
+                <p className="text-[10px] text-text-ink/50 mt-1 leading-relaxed">
+                  Your API key is stored securely in your private cloud account database and used only for sync requests from your dashboard.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-text-ink/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setApiKeyInput("");
+                  }}
+                  className="bg-card-bg hover:bg-stone-50 border border-text-ink/15 text-text-ink px-4 py-2 rounded-md font-semibold text-xxs transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSettings || !apiKeyInput.trim()}
+                  className="bg-terracotta hover:bg-terracotta/90 text-card-bg px-4 py-2 rounded-md font-bold text-xxs transition-all disabled:opacity-50 shadow-sm cursor-pointer"
+                >
+                  {savingSettings ? "Saving..." : "Save API Key"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { UploadCloud, CheckCircle2, AlertCircle, Trash2, Save, FileText, Loader2 } from "lucide-react";
 
@@ -25,6 +25,20 @@ export default function AddParcels() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (!res.ok) {
+          router.push("/login");
+        }
+      } catch (err) {
+        router.push("/login");
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   // File selection handler
   const handleFiles = (files: FileList) => {

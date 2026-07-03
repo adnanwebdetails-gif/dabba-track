@@ -7,6 +7,18 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  password           String
+  trackingmoreApiKey String?  @map("trackingmore_api_key")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  parcels            Parcel[]
+
+  @@map("users")
+}
+
 model Parcel {
   id               String    @id @default(uuid())
   trackingNumber   String    @unique @map("tracking_number")
@@ -23,6 +35,8 @@ model Parcel {
   checkpointsJson  String?   @map("checkpoints_json")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  userId           String?   @map("user_id")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("parcels")
 }

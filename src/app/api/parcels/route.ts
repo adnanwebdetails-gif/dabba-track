@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
 
-    const where: any = {};
+    const where: any = {
+      userId: user.id,
+    };
 
     if (status && status !== 'all') {
       where.status = status;
@@ -15,9 +23,9 @@ export async function GET(req: NextRequest) {
 
     if (search) {
       where.OR = [
-        { trackingNumber: { contains: search } },
-        { customerName: { contains: search } },
-        { city: { contains: search } },
+        { trackingNumber: { contains: search, mode: 'insensitive' } },
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -37,6 +45,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const data = await req.json();
     
     // Support both single parcel and array of parcels
@@ -60,12 +73,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Duplicate tracking numbers in input data' }, { status: 400 });
     }
 
-    // Check database for existing tracking numbers
+    // Check database for existing tracking numbers under the same user
     const existingParcels = await prisma.parcel.findMany({
       where: {
         trackingNumber: {
           in: trackingNumbers,
         },
+        userId: user.id,
       },
       select: {
         trackingNumber: true,
@@ -75,7 +89,7 @@ export async function POST(req: NextRequest) {
     if (existingParcels.length > 0) {
       const duplicates = existingParcels.map((p) => p.trackingNumber).join(', ');
       return NextResponse.json({ 
-        error: `Parcel(s) with tracking number already exist in DabbaTrack: ${duplicates}` 
+        error: `Parcel(s) with tracking number already exist in your account: ${duplicates}` 
       }, { status: 400 });
     }
 
@@ -106,6 +120,7 @@ export async function POST(req: NextRequest) {
           eta: item.eta ? new Date(item.eta) : null,
           trackingmoreId: item.trackingmoreId || null,
           checkpointsJson: JSON.stringify(defaultCheckpoints),
+          userId: user.id,
         },
       });
       createdParcels.push(created);

@@ -7,6 +7,10 @@ import { Package, LayoutDashboard, PlusCircle, CheckSquare } from "lucide-react"
 export function Navigation() {
   const pathname = usePathname();
 
+  if (pathname === "/login") {
+    return null;
+  }
+
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/add-parcels", label: "Add Parcels", icon: PlusCircle },

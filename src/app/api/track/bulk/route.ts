@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncParcelTracking } from '@/lib/tracking';
+import { getSessionUser } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.TRACKINGMORE_API_KEY;
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Retrieve user's personal API Key
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { trackingmoreApiKey: true },
+    });
+
+    const apiKey = dbUser?.trackingmoreApiKey || process.env.TRACKINGMORE_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ 
-        error: 'TrackingMore API key is missing. Please add TRACKINGMORE_API_KEY to your .env file.' 
-      }, { status: 500 });
+        error: 'TrackingMore API key is missing. Please add your personal API key in Settings.' 
+      }, { status: 400 });
     }
 
     const body = await req.json().catch(() => ({ ids: null }));
@@ -17,11 +29,15 @@ export async function POST(req: NextRequest) {
     let parcels;
     if (ids && Array.isArray(ids)) {
       parcels = await prisma.parcel.findMany({
-        where: { id: { in: ids } }
+        where: { 
+          id: { in: ids },
+          userId: user.id,
+        }
       });
     } else {
       parcels = await prisma.parcel.findMany({
         where: {
+          userId: user.id,
           NOT: {
             status: { in: ['delivered', 'rto'] }
           }
