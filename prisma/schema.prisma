@@ -1,0 +1,28 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+model Parcel {
+  id               String    @id @default(uuid())
+  trackingNumber   String    @unique @map("tracking_number")
+  customerName     String?   @map("customer_name")
+  address          String?
+  city             String?
+  codAmount        Float?    @map("cod_amount")
+  orderNo          String?   @map("order_no")
+  courierCode      String?   @map("courier_code")
+  status           String    @default("logged") // logged | in_transit | out_for_delivery | delivered | rto | exception
+  lastCheckpoint   String?   @map("last_checkpoint")
+  eta              DateTime?
+  trackingmoreId   String?   @map("trackingmore_id")
+  checkpointsJson  String?   @map("checkpoints_json")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("parcels")
+}
