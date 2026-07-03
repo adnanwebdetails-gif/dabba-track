@@ -87,12 +87,12 @@ export async function syncParcelTracking(
         throw new Error(getErrorResult.meta?.message || 'Failed to fetch existing tracking status.');
       }
     } else {
-      throw new Error(createResult.meta?.message || 'Failed to register tracking with TrackingMore.');
+      throw new Error(createResult.meta?.message || 'Failed to register tracking with the Service.');
     }
   }
 
   if (!tmData) {
-    throw new Error('No tracking details returned from TrackingMore.');
+    throw new Error('No tracking details returned from the Service.');
   }
 
   // 3. Map statuses

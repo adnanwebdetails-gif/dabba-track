@@ -23,7 +23,7 @@ export async function POST(
     const apiKey = dbUser?.trackingmoreApiKey;
     if (!apiKey) {
       return NextResponse.json({ 
-        error: 'TrackingMore API key is missing. Please add your personal API key in Settings.' 
+        error: 'Service Activation Key is missing. Please add your key in Settings.' 
       }, { status: 400 });
     }
 

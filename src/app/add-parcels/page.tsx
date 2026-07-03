@@ -40,9 +40,9 @@ export default function AddParcels() {
     checkAuth();
   }, [router]);
 
-  // File selection handler
-  const handleFiles = (files: FileList) => {
+  const handleFiles = async (files: FileList) => {
     const newItems: ExtractionItem[] = [];
+    const validFiles: { id: string; file: File }[] = [];
     
     Array.from(files).forEach((file) => {
       // Basic image check
@@ -66,11 +66,18 @@ export default function AddParcels() {
       };
 
       newItems.push(item);
-      // Run extraction asynchronously
-      extractLabelData(uniqueId, file);
+      validFiles.push({ id: uniqueId, file });
     });
 
+    // Update UI immediately with pending items
     setItems((prev) => [...prev, ...newItems]);
+
+    // Process files sequentially to respect Gemini API rate limits
+    for (const { id, file } of validFiles) {
+      await extractLabelData(id, file);
+      // Wait for 2 seconds before sending the next request
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   };
 
   // Drag and Drop events

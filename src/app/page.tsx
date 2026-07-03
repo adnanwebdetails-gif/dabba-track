@@ -116,7 +116,7 @@ export default function Dashboard() {
       setPersonalKeyMasked(data.user.apiKeyMasked || "");
       setShowSettingsModal(false);
       setApiKeyInput("");
-      alert("TrackingMore API Key updated successfully!");
+      alert("Service Activation Key updated successfully! You have received 50 new tracking credits.");
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -636,9 +636,16 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Header and User Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card-bg/60 border border-text-ink/10 rounded-xl p-4 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping" />
-          <span className="text-xs text-text-ink/75 font-medium">Logged in as: <strong className="text-text-ink">{sessionUser?.email || "User"}</strong></span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping" />
+            <span className="text-xs text-text-ink/75 font-medium">Logged in as: <strong className="text-text-ink">{sessionUser?.email || "User"}</strong></span>
+          </div>
+          {sessionUser?.creditsLeft !== undefined && (
+            <div className="flex items-center gap-1.5 bg-deep-teal/10 text-deep-teal border border-deep-teal/20 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm">
+              🔋 Credits Left: {sessionUser.creditsLeft} / 50
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -664,10 +671,10 @@ export default function Dashboard() {
         <div className="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg p-4 flex items-start gap-3">
           <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h4 className="font-bold text-sm">Personal TrackingMore API Key Needed ⚠️</h4>
+            <h4 className="font-bold text-sm">Service Activation Key Needed ⚠️</h4>
             <p className="text-xs mt-0.5">
-              You haven't added your personal TrackingMore API Key yet. Live tracking sync won't work until you add it. 
-              Click <button onClick={() => setShowSettingsModal(true)} className="font-bold underline text-amber-900 hover:text-amber-950">Settings</button> above to save your key.
+              You haven't added your Service Activation Key yet. Live tracking sync won't work until you add it. 
+              Click <button onClick={() => setShowSettingsModal(true)} className="font-bold underline text-amber-900 hover:text-amber-950">Settings</button> above to save your key and get 50 tracking credits.
             </p>
           </div>
         </div>
@@ -1382,23 +1389,30 @@ export default function Dashboard() {
             <form onSubmit={handleSaveApiKey} className="space-y-4 text-xs">
               <div className="space-y-2">
                 <label className="block font-bold text-xxs uppercase tracking-wider text-text-ink/60">
-                  TrackingMore API Key
+                  Service Activation Key
                 </label>
                 
                 {hasPersonalKey ? (
-                  <div className="bg-emerald-50 text-emerald-850 border border-emerald-200 p-2.5 rounded text-xxs font-medium mb-2 flex items-center justify-between">
-                    <span>Active Key: <strong>{personalKeyMasked}</strong></span>
-                    <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Configured</span>
+                  <div className="bg-emerald-50 text-emerald-850 border border-emerald-200 p-2.5 rounded text-xxs font-medium mb-2 flex flex-col justify-center gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span>Active Key: <strong>{personalKeyMasked}</strong></span>
+                      <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Configured</span>
+                    </div>
+                    {sessionUser?.creditsLeft !== undefined && (
+                      <div className="text-emerald-800">
+                        <strong>{sessionUser.creditsLeft}</strong> Tracking Credits Remaining
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded text-xxs font-medium mb-2">
-                    No personal API Key saved yet. Sync won't work on the live server without this.
+                    No Activation Key saved yet. Sync won't work without this.
                   </div>
                 )}
 
                 <input
                   type="password"
-                  placeholder={hasPersonalKey ? "Enter new API key to overwrite" : "Enter your TrackingMore API Key"}
+                  placeholder={hasPersonalKey ? "Enter new Activation Key to get 50 more credits" : "Enter your Service Activation Key"}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   className="w-full px-3 py-2 border border-text-ink/15 rounded-md bg-kraft-bg/25 text-text-ink text-sm focus:outline-none focus:ring-1 focus:ring-terracotta placeholder-text-ink/35"

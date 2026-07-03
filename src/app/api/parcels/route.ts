@@ -93,6 +93,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Check credits
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!dbUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
+    if (dbUser.creditsLeft < parcelsData.length) {
+      return NextResponse.json({ 
+        error: `Insufficient credits. You are trying to add ${parcelsData.length} parcel(s) but only have ${dbUser.creditsLeft} credit(s) left. Please add a new Activation Key in Settings.` 
+      }, { status: 400 });
+    }
+
     // Insert into database
     const createdParcels = [];
     for (const item of parcelsData) {
@@ -124,6 +136,14 @@ export async function POST(req: NextRequest) {
         },
       });
       createdParcels.push(created);
+    }
+
+    // Deduct credits
+    if (createdParcels.length > 0) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { creditsLeft: { decrement: createdParcels.length } }
+      });
     }
 
     return NextResponse.json({

@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        creditsLeft: (user as any).creditsLeft,
         hasApiKey: !!user.trackingmoreApiKey,
         // Expose a masked version or placeholder of the API key if needed, or just status
         apiKeyMasked: user.trackingmoreApiKey ? `${user.trackingmoreApiKey.slice(0, 4)}...${user.trackingmoreApiKey.slice(-4)}` : null,
@@ -45,11 +46,13 @@ export async function PATCH(req: NextRequest) {
       where: { id: user.id },
       data: {
         trackingmoreApiKey: trackingmoreApiKey.trim() || null,
+        creditsLeft: 50, // Reset credits to 50 whenever key is updated
       },
       select: {
         id: true,
         email: true,
         trackingmoreApiKey: true,
+        creditsLeft: true,
       },
     });
 
@@ -58,6 +61,7 @@ export async function PATCH(req: NextRequest) {
       user: {
         id: updated.id,
         email: updated.email,
+        creditsLeft: updated.creditsLeft,
         hasApiKey: !!updated.trackingmoreApiKey,
         apiKeyMasked: updated.trackingmoreApiKey ? `${updated.trackingmoreApiKey.slice(0, 4)}...${updated.trackingmoreApiKey.slice(-4)}` : null,
       },

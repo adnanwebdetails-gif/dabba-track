@@ -12,6 +12,7 @@ model User {
   email              String   @unique
   password           String
   trackingmoreApiKey String?  @map("trackingmore_api_key")
+  creditsLeft        Int      @default(50) @map("credits_left")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
   parcels            Parcel[]

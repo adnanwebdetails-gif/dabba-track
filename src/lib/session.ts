@@ -42,6 +42,7 @@ export async function getSessionUser(req: Request) {
         id: true,
         email: true,
         trackingmoreApiKey: true,
+        creditsLeft: true,
         createdAt: true,
       },
     });
