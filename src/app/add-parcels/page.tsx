@@ -101,8 +101,8 @@ export default function AddParcels() {
     }
   };
 
-  // Perform AI extraction per file
-  const extractLabelData = async (id: string, file: File) => {
+  // Perform AI extraction per file with auto-retry for rate limits
+  const extractLabelData = async (id: string, file: File, retryCount = 0): Promise<void> => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, status: "extracting" } : item))
     );
@@ -119,7 +119,29 @@ export default function AddParcels() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Extraction failed");
+        // Handle Gemini Rate Limit / Quota Exceeded errors
+        const errMsg = data.error || "";
+        if ((res.status === 429 || errMsg.includes("Quota exceeded") || errMsg.includes("retry in")) && retryCount < 3) {
+          // Extract the required wait time from the error, default to 20 seconds
+          let waitTime = 20000;
+          const match = errMsg.match(/retry in ([\d\.]+)s/);
+          if (match && match[1]) {
+            waitTime = (parseFloat(match[1]) + 2) * 1000; // Add 2 second buffer
+          }
+          
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? { ...item, error: `Rate limited by AI. Retrying automatically in ${Math.round(waitTime / 1000)}s...` }
+                : item
+            )
+          );
+          
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          return extractLabelData(id, file, retryCount + 1);
+        }
+
+        throw new Error(errMsg || "Extraction failed");
       }
 
       // Populate extracted values
