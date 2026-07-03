@@ -20,7 +20,7 @@ export async function POST(
       select: { trackingmoreApiKey: true },
     });
 
-    const apiKey = dbUser?.trackingmoreApiKey || process.env.TRACKINGMORE_API_KEY;
+    const apiKey = dbUser?.trackingmoreApiKey;
     if (!apiKey) {
       return NextResponse.json({ 
         error: 'TrackingMore API key is missing. Please add your personal API key in Settings.' 
