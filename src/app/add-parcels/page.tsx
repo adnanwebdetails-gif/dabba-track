@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, CheckCircle2, AlertCircle, Trash2, Save, FileText, Loader2 } from "lucide-react";
+import { UploadCloud, CheckCircle2, AlertCircle, Trash2, Save, FileText, Loader2, RefreshCw } from "lucide-react";
 
 interface ExtractionItem {
   id: string;
@@ -16,6 +16,7 @@ interface ExtractionItem {
   codAmount: number;
   orderNo: string;
   courierCode: string;
+  originalFile: File;
 }
 
 export default function AddParcels() {
@@ -63,6 +64,7 @@ export default function AddParcels() {
         codAmount: 0,
         orderNo: "",
         courierCode: "",
+        originalFile: file,
       };
 
       newItems.push(item);
@@ -358,6 +360,16 @@ export default function AddParcels() {
                       <AlertCircle className="h-3.5 w-3.5" />
                       Failed
                     </span>
+                  )}
+
+                  {item.status === "failed" && (
+                    <button
+                      onClick={() => extractLabelData(item.id, item.originalFile, 0)}
+                      className="p-1 ml-2 text-text-ink/60 hover:text-terracotta rounded transition-all"
+                      title="Retry Extraction"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
                   )}
 
                   <button
