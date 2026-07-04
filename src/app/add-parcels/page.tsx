@@ -72,11 +72,11 @@ export default function AddParcels() {
     // Update UI immediately with pending items
     setItems((prev) => [...prev, ...newItems]);
 
-    // Process files sequentially to respect Gemini API rate limits (Free tier: 15 RPM)
+    // Process files sequentially to respect Gemini API rate limits (Free tier: 15 RPM per key)
     for (const { id, file } of validFiles) {
       await extractLabelData(id, file);
-      // Wait for 4.5 seconds before sending the next request
-      await new Promise((resolve) => setTimeout(resolve, 4500));
+      // Wait for 1.5 seconds before sending the next request (fast mode with multi-key rotation)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   };
 

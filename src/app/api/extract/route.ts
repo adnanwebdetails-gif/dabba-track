@@ -9,11 +9,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // Support multiple keys for rotation (comma-separated)
+    const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY;
+    if (!keysString) {
       return NextResponse.json({ 
-        error: 'Gemini API key is missing. Please add GEMINI_API_KEY to your .env file.' 
+        error: 'Gemini API keys are missing. Please add GEMINI_API_KEYS or GEMINI_API_KEY to your .env file.' 
       }, { status: 500 });
+    }
+
+    // Split and prepare all keys
+    const apiKeys = keysString.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    
+    // Shuffle the keys to distribute load evenly
+    for (let i = apiKeys.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [apiKeys[i], apiKeys[j]] = [apiKeys[j], apiKeys[i]];
     }
 
     // Convert file to array buffer and base64
@@ -34,66 +44,110 @@ export async function POST(req: NextRequest) {
       - courier: The name of the courier service (e.g. Ekart, Delhivery, XpressBees, Blue Dart, DTDC, etc. - parse as slug or name like "ekart", "delhivery").
     `;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Data,
-                },
+    const requestBody = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data,
               },
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              tracking_number: { type: 'STRING' },
-              customer_name: { type: 'STRING' },
-              address: { type: 'STRING' },
-              city: { type: 'STRING' },
-              cod_amount: { type: 'NUMBER' },
-              order_no: { type: 'STRING' },
-              courier: { type: 'STRING' }
             },
-            required: ['tracking_number']
-          }
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            tracking_number: { type: 'STRING' },
+            customer_name: { type: 'STRING' },
+            address: { type: 'STRING' },
+            city: { type: 'STRING' },
+            cod_amount: { type: 'NUMBER' },
+            order_no: { type: 'STRING' },
+            courier: { type: 'STRING' }
+          },
+          required: ['tracking_number']
         }
-      }),
+      }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      let parsedError;
+    let lastError = null;
+    let rateLimitStatus = null;
+
+    for (let index = 0; index < apiKeys.length; index++) {
+      const apiKey = apiKeys[index];
+      
       try {
-        parsedError = JSON.parse(errorText);
-      } catch (_) {
-        parsedError = { error: { message: errorText } };
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: requestBody,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let parsedError;
+          try {
+            parsedError = JSON.parse(errorText);
+          } catch (_) {
+            parsedError = { error: { message: errorText } };
+          }
+          
+          const errorMessage = parsedError.error?.message || `Gemini API error: ${response.status}`;
+          
+          // Check if it's a rate limit or quota error
+          if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate limit')) {
+            console.warn(`[Key ${index + 1}/${apiKeys.length}] Rate-limited or quota exceeded. Error: ${errorMessage}`);
+            lastError = errorMessage;
+            rateLimitStatus = response.status === 429 ? 429 : 503;
+            continue; // Try next key
+          }
+          
+          // If it's another error, throw it so it's caught by the outer catch
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          throw new Error('Gemini API returned an empty response');
+        }
+
+        const result = JSON.parse(text);
+        return NextResponse.json(result);
+        
+      } catch (err: any) {
+        // If it's a non-retryable error thrown from inside the loop
+        const errMsg = err.message || '';
+        if (errMsg && !errMsg.toLowerCase().includes('quota') && !errMsg.toLowerCase().includes('rate limit') && !errMsg.toLowerCase().includes('fetch failed')) {
+           throw err;
+        }
+        
+        console.warn(`[Key ${index + 1}/${apiKeys.length}] Failed with error: ${errMsg}`);
+        lastError = err.message || 'Unknown error';
+        rateLimitStatus = 503;
+        continue;
       }
-      throw new Error(parsedError.error?.message || `Gemini API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      throw new Error('Gemini API returned an empty response');
+    // If we've exhausted all keys
+    if (lastError) {
+       return NextResponse.json({ 
+          error: `All API keys exhausted or rate limited. Last error: ${lastError}` 
+       }, { status: rateLimitStatus || 429 });
     }
-
-    const result = JSON.parse(text);
-    return NextResponse.json(result);
+    
+    throw new Error("Failed to process request with any key");
   } catch (error: any) {
     console.error('Error in label OCR extraction:', error);
     return NextResponse.json({ 
