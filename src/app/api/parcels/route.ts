@@ -73,13 +73,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Duplicate tracking numbers in input data' }, { status: 400 });
     }
 
-    // Check database for existing tracking numbers under the same user
+    // Check database for existing tracking numbers globally (since trackingNumber is @unique)
     const existingParcels = await prisma.parcel.findMany({
       where: {
         trackingNumber: {
           in: trackingNumbers,
         },
-        userId: user.id,
       },
       select: {
         trackingNumber: true,
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (existingParcels.length > 0) {
       const duplicates = existingParcels.map((p) => p.trackingNumber).join(', ');
       return NextResponse.json({ 
-        error: `Parcel(s) with tracking number already exist in your account: ${duplicates}` 
+        error: `Parcel(s) with tracking number already exist in the system: ${duplicates}` 
       }, { status: 400 });
     }
 
@@ -105,9 +104,8 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Insert into database
-    const createdParcels = [];
-    for (const item of parcelsData) {
+    // Prepare data for bulk insert
+    const parcelsDataToInsert = parcelsData.map(item => {
       const initialStatus = item.status || 'logged';
       const defaultCheckpoints = [
         {
@@ -118,37 +116,42 @@ export async function POST(req: NextRequest) {
         }
       ];
 
-      const created = await prisma.parcel.create({
-        data: {
-          trackingNumber: item.trackingNumber.trim(),
-          customerName: item.customerName || null,
-          address: item.address || null,
-          city: item.city || null,
-          codAmount: item.codAmount ? parseFloat(item.codAmount) : null,
-          orderNo: item.orderNo || null,
-          courierCode: item.courierCode || null,
-          status: initialStatus,
-          lastCheckpoint: item.lastCheckpoint || `Logged at Surat Warehouse`,
-          eta: item.eta ? new Date(item.eta) : null,
-          trackingmoreId: item.trackingmoreId || null,
-          checkpointsJson: JSON.stringify(defaultCheckpoints),
-          userId: user.id,
-        },
-      });
-      createdParcels.push(created);
-    }
+      return {
+        trackingNumber: item.trackingNumber.trim(),
+        customerName: item.customerName || null,
+        address: item.address || null,
+        city: item.city || null,
+        codAmount: item.codAmount ? parseFloat(item.codAmount) : null,
+        orderNo: item.orderNo || null,
+        courierCode: item.courierCode || null,
+        status: initialStatus,
+        lastCheckpoint: item.lastCheckpoint || `Logged at Surat Warehouse`,
+        eta: item.eta ? new Date(item.eta) : null,
+        trackingmoreId: item.trackingmoreId || null,
+        checkpointsJson: JSON.stringify(defaultCheckpoints),
+        userId: user.id,
+      };
+    });
 
-    // Deduct credits
-    if (createdParcels.length > 0) {
+    // Insert into database using createMany (transactional, skips duplicates gracefully)
+    const result = await prisma.parcel.createMany({
+      data: parcelsDataToInsert,
+      skipDuplicates: true,
+    });
+
+    const createdCount = result.count;
+
+    // Deduct credits based on actual inserted count
+    if (createdCount > 0) {
       await prisma.user.update({
         where: { id: user.id },
-        data: { creditsLeft: { decrement: createdParcels.length } }
+        data: { creditsLeft: { decrement: createdCount } }
       });
     }
 
     return NextResponse.json({
-      message: `Successfully saved ${createdParcels.length} parcel(s)`,
-      parcels: createdParcels,
+      message: `Successfully saved ${createdCount} parcel(s)`,
+      count: createdCount,
     });
   } catch (error: any) {
     console.error('Error creating parcels:', error);

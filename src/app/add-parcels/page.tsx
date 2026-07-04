@@ -72,11 +72,18 @@ export default function AddParcels() {
     // Update UI immediately with pending items
     setItems((prev) => [...prev, ...newItems]);
 
-    // Process files sequentially to respect Gemini API rate limits (Free tier: 15 RPM per key)
-    for (const { id, file } of validFiles) {
-      await extractLabelData(id, file);
-      // Wait for 1.5 seconds before sending the next request (fast mode with multi-key rotation)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Process files in batches to make it much faster while still respecting rate limits
+    const BATCH_SIZE = 3; // Process 3 images concurrently
+    for (let i = 0; i < validFiles.length; i += BATCH_SIZE) {
+      const batch = validFiles.slice(i, i + BATCH_SIZE);
+      
+      // Run the extraction for the batch concurrently
+      await Promise.all(batch.map(({ id, file }) => extractLabelData(id, file)));
+      
+      // Short 1.5s delay between batches (instead of every single file)
+      if (i + BATCH_SIZE < validFiles.length) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     }
   };
 
