@@ -113,7 +113,7 @@ export default function AddParcels() {
   // Perform AI extraction per file with auto-retry for rate limits
   const extractLabelData = async (id: string, file: File, retryCount = 0): Promise<void> => {
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "extracting" } : item))
+      prev.map((item) => (item.id === id ? { ...item, status: "extracting", error: undefined } : item))
     );
 
     try {
@@ -346,7 +346,7 @@ export default function AddParcels() {
                   {item.status === "extracting" && (
                     <span className="flex items-center gap-1 text-xs text-mustard font-medium">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Gemini OCR Extracting...
+                      {item.error || "Gemini OCR Extracting..."}
                     </span>
                   )}
                   {item.status === "success" && (
