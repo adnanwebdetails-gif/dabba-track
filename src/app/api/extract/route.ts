@@ -105,9 +105,15 @@ export async function POST(req: NextRequest) {
           
           const errorMessage = parsedError.error?.message || `Gemini API error: ${response.status}`;
           
-          // Check if it's a rate limit or quota error
-          if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate limit')) {
-            console.warn(`[Key ${index + 1}/${apiKeys.length}] Rate-limited or quota exceeded. Error: ${errorMessage}`);
+          // Check if it's a rate limit, quota error, or high demand
+          const isRetryable = response.status === 429 || 
+                              response.status >= 500 || 
+                              errorMessage.toLowerCase().includes('quota') || 
+                              errorMessage.toLowerCase().includes('rate limit') ||
+                              errorMessage.toLowerCase().includes('high demand');
+                              
+          if (isRetryable) {
+            console.warn(`[Key ${index + 1}/${apiKeys.length}] Rate-limited, quota exceeded, or high demand. Error: ${errorMessage}`);
             lastError = errorMessage;
             rateLimitStatus = response.status === 429 ? 429 : 503;
             continue; // Try next key
@@ -129,7 +135,12 @@ export async function POST(req: NextRequest) {
       } catch (err: any) {
         // If it's a non-retryable error thrown from inside the loop
         const errMsg = err.message || '';
-        if (errMsg && !errMsg.toLowerCase().includes('quota') && !errMsg.toLowerCase().includes('rate limit') && !errMsg.toLowerCase().includes('fetch failed')) {
+        const isRetryableErr = errMsg.toLowerCase().includes('quota') || 
+                               errMsg.toLowerCase().includes('rate limit') || 
+                               errMsg.toLowerCase().includes('fetch failed') ||
+                               errMsg.toLowerCase().includes('high demand');
+                               
+        if (errMsg && !isRetryableErr) {
            throw err;
         }
         

@@ -126,9 +126,11 @@ export default function AddParcels() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Handle Gemini Rate Limit / Quota Exceeded errors
+        // Handle Gemini Rate Limit / Quota Exceeded / High Demand errors
         const errMsg = data.error || "";
-        if ((res.status === 429 || errMsg.includes("Quota exceeded") || errMsg.includes("retry in")) && retryCount < 3) {
+        const isRetryable = res.status === 429 || res.status >= 500 || errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("retry in") || errMsg.toLowerCase().includes("high demand");
+        
+        if (isRetryable && retryCount < 3) {
           // Extract the required wait time from the error, default to 20 seconds
           let waitTime = 20000;
           const match = errMsg.match(/retry in ([\d\.]+)s/);
